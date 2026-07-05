@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SharpClaw.Metrics.Tests/SharpClaw.Metrics.Tests.csproj" />
+  <Project Path="SharpClaw.Modules.Metrics/SharpClaw.Modules.Metrics.csproj" />
+</Solution>
