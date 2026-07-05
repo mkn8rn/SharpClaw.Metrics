@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using SharpClaw.Contracts.Modules;
 using SharpClaw.Contracts.Tasks;
+using SharpClaw.Core.Tasks;
+using SharpClaw.Core.Tasks.Models;
+using SharpClaw.Core.Tasks.Parsing;
 using SharpClaw.Modules.Metrics;
 
 namespace SharpClaw.Metrics.Tests;
@@ -89,6 +92,84 @@ public sealed class MetricsModuleTests
     }
 
     [Test]
+    public void RegisteredParserExtensionParsesMetricThresholdAttribute()
+    {
+        var definition = ParseWithMetricsExtension(WrapTaskWithAttribute(
+            """[OnMetricThreshold("System.CpuPercent", Threshold = 90.0, Direction = ThresholdDirection.Above)]"""));
+
+        var trigger = AssertSingleTrigger(definition);
+
+        Assert.That(trigger.TriggerKey, Is.EqualTo(MetricTriggerKeys.MetricThreshold));
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Source], Is.EqualTo("System.CpuPercent"));
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Threshold], Is.EqualTo("90"));
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Direction], Is.EqualTo(ThresholdDirection.Above.ToString()));
+        Assert.That(trigger.Parameters.ContainsKey(MetricTriggerKeys.PollIntervalSecs), Is.False);
+        Assert.That(trigger.Line, Is.EqualTo(1));
+    }
+
+    [TestCase("ThresholdDirection.Above", nameof(ThresholdDirection.Above))]
+    [TestCase("ThresholdDirection.Below", nameof(ThresholdDirection.Below))]
+    [TestCase("ThresholdDirection.Either", nameof(ThresholdDirection.Either))]
+    public void RegisteredParserExtensionPreservesMetricThresholdDirection(string sourceDirection, string expected)
+    {
+        var definition = ParseWithMetricsExtension(WrapTaskWithAttribute(
+            $$"""[OnMetricThreshold("Queue.PendingJobCount", Threshold = 4.5, Direction = {{sourceDirection}})]"""));
+
+        var trigger = AssertSingleTrigger(definition);
+
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Threshold], Is.EqualTo("4.5"));
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Direction], Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void RegisteredParserExtensionDefaultsDirectionToEither()
+    {
+        var definition = ParseWithMetricsExtension(WrapTaskWithAttribute(
+            """[OnMetricThreshold("Queue.PendingTaskCount", Threshold = 3)]"""));
+
+        var trigger = AssertSingleTrigger(definition);
+
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Source], Is.EqualTo("Queue.PendingTaskCount"));
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Threshold], Is.EqualTo("3"));
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Direction], Is.EqualTo(ThresholdDirection.Either.ToString()));
+    }
+
+    [Test]
+    public void RegisteredParserExtensionPreservesPollIntervalAndLineNumber()
+    {
+        var definition = ParseWithMetricsExtension("""
+
+
+[OnMetricThreshold("Scheduler.PendingJobCount", Threshold = 1, Direction = ThresholdDirection.Below, PollInterval = 15)]
+[Task("TriggerTask")]
+public class TriggerTask
+{
+    public async Task RunAsync(CancellationToken ct)
+    {
+        Log("ok");
+    }
+}
+""");
+
+        var trigger = AssertSingleTrigger(definition);
+
+        Assert.That(trigger.Parameters[MetricTriggerKeys.Source], Is.EqualTo("Scheduler.PendingJobCount"));
+        Assert.That(trigger.Parameters[MetricTriggerKeys.PollIntervalSecs], Is.EqualTo("15"));
+        Assert.That(trigger.Line, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void MetricTriggerSourceUsesParsedMetricSourceAsBindingValue()
+    {
+        var definition = ParseWithMetricsExtension(WrapTaskWithAttribute(
+            """[OnMetricThreshold("Queue.PendingJobCount", Threshold = 1, Direction = ThresholdDirection.Above)]"""));
+        var trigger = AssertSingleTrigger(definition);
+        var source = new MetricTriggerSource([], NullLogger<MetricTriggerSource>.Instance);
+
+        Assert.That(source.GetBindingValue(trigger), Is.EqualTo("Queue.PendingJobCount"));
+    }
+
+    [Test]
     public void MetricTriggerSourcePreservesTriggerIdentityAndBindingValue()
     {
         var source = new MetricTriggerSource([], NullLogger<MetricTriggerSource>.Instance);
@@ -141,4 +222,33 @@ public sealed class MetricsModuleTests
             return Task.FromResult(33d);
         }
     }
+
+    private static TaskScriptDefinition ParseWithMetricsExtension(string source)
+    {
+        TaskScriptParser.RegisterModule(MetricsParserExtension.Instance);
+
+        var result = TaskScriptEngine.Parse(source);
+        var errors = result.Diagnostics
+            .Where(diagnostic => diagnostic.Severity == TaskDiagnosticSeverity.Error)
+            .Select(diagnostic => diagnostic.Message)
+            .ToArray();
+
+        Assert.That(errors, Is.Empty);
+        return result.Definition!;
+    }
+
+    private static TaskTriggerDefinition AssertSingleTrigger(TaskScriptDefinition definition) =>
+        definition.TriggerDefinitions.Single();
+
+    private static string WrapTaskWithAttribute(string attribute) => $$"""
+{{attribute}}
+[Task("TriggerTask")]
+public class TriggerTask
+{
+    public async Task RunAsync(CancellationToken ct)
+    {
+        Log("ok");
+    }
+}
+""";
 }
