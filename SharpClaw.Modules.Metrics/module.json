@@ -1,7 +1,7 @@
 {
   "id": "sharpclaw_metrics",
   "displayName": "Metrics",
-  "version": "0.1.1-beta",
+  "version": "0.1.1-beta.1",
   "toolPrefix": "metric",
   "runtime": "dotnet",
   "hostMode": "sidecar",
@@ -9,7 +9,7 @@
   "moduleType": "SharpClaw.Modules.Metrics.MetricsModule",
   "minHostVersion": "0.1.0-beta",
   "author": "mkn8rn",
-  "description": "Owns the MetricThreshold task trigger and the built-in metric providers.",
+  "description": "Provides the SharpClaw Metrics module identity and host-side metrics integration.",
   "license": "AGPL-3.0",
   "platforms": null,
   "enabled": true,

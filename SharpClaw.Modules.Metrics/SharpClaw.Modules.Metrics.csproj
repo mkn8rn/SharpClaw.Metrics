@@ -7,8 +7,8 @@
     <IsPackable>true</IsPackable>
     <Authors>mkn8rn</Authors>
     <Company>mkn8rn</Company>
-    <Description>SharpClaw module that owns built-in queue metrics and metric-threshold task triggers.</Description>
-    <PackageTags>sharpclaw;module;metrics;tasks;triggers</PackageTags>
+    <Description>SharpClaw module that provides the first-party Metrics module boundary and lifecycle.</Description>
+    <PackageTags>sharpclaw;module;metrics</PackageTags>
     <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageProjectUrl>https://github.com/SharpClaw-NET/SharpClaw.Metrics</PackageProjectUrl>
